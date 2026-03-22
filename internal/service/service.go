@@ -35,7 +35,7 @@ type Repository interface {
 	ListBookings(ctx context.Context, page, pageSize int) ([]model.Booking, int, error)
 	ListMyFutureBookings(ctx context.Context, userID uuid.UUID, now time.Time) ([]model.Booking, error)
 	GetBooking(ctx context.Context, bookingID uuid.UUID) (model.Booking, error)
-	CancelBooking(ctx context.Context, bookingID uuid.UUID) (model.Booking, error)
+	CancelBooking(ctx context.Context, bookingID uuid.UUID) error
 }
 
 type Service struct {
@@ -56,19 +56,24 @@ func (s *Service) EnsureSystemUsers(ctx context.Context) error {
 		Role:         model.RoleAdmin,
 		CreatedAt:    now,
 	}); err != nil {
+		s.log.WithField("error", err.Error()).Error("failed to ensure admin user")
 		return err
 	}
-	return s.repo.EnsureUser(ctx, model.User{
+	if err := s.repo.EnsureUser(ctx, model.User{
 		ID:           fixedUserID,
 		Email:        "user@dummy.local",
 		PasswordHash: "dummy",
 		Role:         model.RoleUser,
 		CreatedAt:    now,
-	})
+	}); err != nil {
+		s.log.WithField("error", err.Error()).Error("failed to ensure user user")
+		return err
+	}
+	s.log.Info("system users ensured")
+	return nil
 }
 
 func (s *Service) DummyLogin(ctx context.Context, role model.Role) (uuid.UUID, model.Role, error) {
-	_ = ctx
 	var id uuid.UUID
 	switch role {
 	case model.RoleAdmin:
@@ -86,6 +91,7 @@ func (s *Service) DummyLogin(ctx context.Context, role model.Role) (uuid.UUID, m
 func (s *Service) Register(ctx context.Context, email, password string, role model.Role) (model.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		s.log.WithField("email", email).Error("failed to generate password hash")
 		return model.User{}, err
 	}
 	user := model.User{
@@ -95,47 +101,74 @@ func (s *Service) Register(ctx context.Context, email, password string, role mod
 		Role:         role,
 		CreatedAt:    time.Now().UTC(),
 	}
-	return s.repo.CreateUser(ctx, user)
+	createdUser, err := s.repo.CreateUser(ctx, user)
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"email": email, "error": err.Error()}).Error("failed to create user in repository")
+		return model.User{}, err
+	}
+	s.log.WithFields(logrus.Fields{"user_id": createdUser.ID, "email": email}).Info("user registered successfully")
+	return createdUser, nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (uuid.UUID, model.Role, error) {
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
+		s.log.WithField("email", email).Debug("user not found for login")
 		return uuid.Nil, "", err
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+		s.log.WithField("email", email).Warn("invalid password for login")
 		return uuid.Nil, "", apperrors.Forbidden
 	}
+	s.log.WithFields(logrus.Fields{"user_id": user.ID, "email": email, "role": user.Role}).Info("login successful")
 	return user.ID, user.Role, nil
 }
 
 func (s *Service) CreateRoom(ctx context.Context, name string, description *string, capacity *int) (model.Room, error) {
-	return s.repo.CreateRoom(ctx, model.Room{
+	room, err := s.repo.CreateRoom(ctx, model.Room{
 		ID:          uuid.New(),
 		Name:        name,
 		Description: description,
 		Capacity:    capacity,
 		CreatedAt:   time.Now().UTC(),
 	})
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"room_name": name, "error": err.Error()}).Error("failed to create room")
+		return model.Room{}, err
+	}
+	s.log.WithFields(logrus.Fields{"room_id": room.ID, "room_name": room.Name}).Info("room created successfully")
+	return room, nil
 }
 
-func (s *Service) ListRooms(ctx context.Context) ([]model.Room, error) { return s.repo.ListRooms(ctx) }
+func (s *Service) ListRooms(ctx context.Context) ([]model.Room, error) {
+	rooms, err := s.repo.ListRooms(ctx)
+	if err != nil {
+		s.log.WithField("error", err.Error()).Error("failed to list rooms")
+		return nil, err
+	}
+	s.log.WithField("rooms_count", len(rooms)).Info("rooms listed")
+	return rooms, nil
+}
 
 func (s *Service) CreateSchedule(ctx context.Context, roomID uuid.UUID, days []int, startTime, endTime string) (model.Schedule, error) {
 	ok, err := s.repo.RoomExists(ctx, roomID)
 	if err != nil {
+		s.log.WithFields(logrus.Fields{"room_id": roomID, "error": err.Error()}).Error("failed to check room existence")
 		return model.Schedule{}, err
 	}
 	if !ok {
+		s.log.WithField("room_id", roomID).Warn("room not found for schedule")
 		return model.Schedule{}, apperrors.NotFound
 	}
 
 	startClock, endClock, err := parseClockRange(startTime, endTime)
 	if err != nil {
+		s.log.WithFields(logrus.Fields{"start_time": startTime, "end_time": endTime, "error": err.Error()}).Warn("invalid time range")
 		return model.Schedule{}, apperrors.BadRequest
 	}
 	for _, d := range days {
 		if d < 1 || d > 7 {
+			s.log.WithField("days", days).Warn("invalid days in schedule")
 			return model.Schedule{}, apperrors.BadRequest
 		}
 	}
@@ -148,13 +181,13 @@ func (s *Service) CreateSchedule(ctx context.Context, roomID uuid.UUID, days []i
 		EndTime:    endTime,
 	})
 	if err != nil {
+		s.log.WithFields(logrus.Fields{"room_id": roomID, "error": err.Error()}).Error("failed to create schedule in repository")
 		return model.Schedule{}, err
 	}
-
-	slots := make([]model.Slot, 0, 400)
+	var slots []model.Slot
 	now := time.Now().UTC()
 	baseDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 7; i++ {
 		day := baseDate.AddDate(0, 0, i)
 		wd := int(day.Weekday())
 		if wd == 0 {
@@ -180,28 +213,40 @@ func (s *Service) CreateSchedule(ctx context.Context, roomID uuid.UUID, days []i
 		}
 	}
 	if err = s.repo.SaveSlots(ctx, slots); err != nil {
+		s.log.WithFields(logrus.Fields{"room_id": roomID, "slots_count": len(slots), "error": err.Error()}).Error("failed to save slots")
 		return model.Schedule{}, err
 	}
+	s.log.WithFields(logrus.Fields{"schedule_id": schedule.ID, "room_id": roomID, "slots_created": len(slots)}).Info("schedule created successfully")
 	return schedule, nil
 }
 
 func (s *Service) ListAvailableSlots(ctx context.Context, roomID uuid.UUID, date time.Time) ([]model.Slot, error) {
 	ok, err := s.repo.RoomExists(ctx, roomID)
 	if err != nil {
+		s.log.WithFields(logrus.Fields{"room_id": roomID, "error": err.Error()}).Error("failed to check room existence")
 		return nil, err
 	}
 	if !ok {
+		s.log.WithField("room_id", roomID).Warn("room not found for slots listing")
 		return nil, apperrors.NotFound
 	}
-	return s.repo.ListAvailableSlotsByRoomAndDate(ctx, roomID, date)
+	slots, err := s.repo.ListAvailableSlotsByRoomAndDate(ctx, roomID, date)
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"room_id": roomID, "date": date, "error": err.Error()}).Error("failed to list available slots")
+		return nil, err
+	}
+	s.log.WithFields(logrus.Fields{"room_id": roomID, "date": date, "slots_count": len(slots)}).Info("available slots listed")
+	return slots, nil
 }
 
 func (s *Service) CreateBooking(ctx context.Context, slotID, userID uuid.UUID, createConferenceLink bool) (model.Booking, error) {
 	slot, err := s.repo.GetSlotByID(ctx, slotID)
 	if err != nil {
+		s.log.WithFields(logrus.Fields{"slot_id": slotID, "error": err.Error()}).Error("failed to get slot")
 		return model.Booking{}, err
 	}
 	if slot.Start.Before(time.Now().UTC()) {
+		s.log.WithFields(logrus.Fields{"slot_id": slotID, "slot_start": slot.Start}).Warn("slot is in the past")
 		return model.Booking{}, apperrors.BadRequest
 	}
 	var link *string
@@ -209,7 +254,7 @@ func (s *Service) CreateBooking(ctx context.Context, slotID, userID uuid.UUID, c
 		v := fmt.Sprintf("https://meet.example.local/%s", uuid.NewString())
 		link = &v
 	}
-	return s.repo.CreateBooking(ctx, model.Booking{
+	booking, err := s.repo.CreateBooking(ctx, model.Booking{
 		ID:             uuid.New(),
 		SlotID:         slotID,
 		UserID:         userID,
@@ -217,29 +262,58 @@ func (s *Service) CreateBooking(ctx context.Context, slotID, userID uuid.UUID, c
 		ConferenceLink: link,
 		CreatedAt:      time.Now().UTC(),
 	})
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"slot_id": slotID, "user_id": userID, "error": err.Error()}).Error("failed to create booking in repository")
+		return model.Booking{}, err
+	}
+	s.log.WithFields(logrus.Fields{"booking_id": booking.ID, "slot_id": slotID, "user_id": userID}).Info("booking created successfully")
+	return booking, nil
 }
 
 func (s *Service) ListBookings(ctx context.Context, page, pageSize int) ([]model.Booking, int, error) {
 	if page < 1 || pageSize < 1 || pageSize > 100 {
+		s.log.WithFields(logrus.Fields{"page": page, "page_size": pageSize}).Warn("invalid pagination parameters")
 		return nil, 0, apperrors.BadRequest
 	}
-	return s.repo.ListBookings(ctx, page, pageSize)
+	bookings, total, err := s.repo.ListBookings(ctx, page, pageSize)
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"page": page, "page_size": pageSize, "error": err.Error()}).Error("failed to list bookings")
+		return nil, 0, err
+	}
+	s.log.WithFields(logrus.Fields{"page": page, "page_size": pageSize, "total": total, "returned": len(bookings)}).Info("bookings listed")
+	return bookings, total, nil
 }
 
 func (s *Service) ListMyBookings(ctx context.Context, userID uuid.UUID) ([]model.Booking, error) {
-	return s.repo.ListMyFutureBookings(ctx, userID, time.Now().UTC())
+	bookings, err := s.repo.ListMyFutureBookings(ctx, userID, time.Now().UTC())
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"user_id": userID, "error": err.Error()}).Error("failed to list my bookings")
+		return nil, err
+	}
+	s.log.WithFields(logrus.Fields{"user_id": userID, "bookings_count": len(bookings)}).Info("my bookings listed")
+	return bookings, nil
 }
 
 func (s *Service) CancelBooking(ctx context.Context, bookingID, userID uuid.UUID) (model.Booking, error) {
 	booking, err := s.repo.GetBooking(ctx, bookingID)
 	if err != nil {
+		s.log.WithFields(logrus.Fields{"booking_id": bookingID, "error": err.Error()}).Error("failed to get booking")
 		return model.Booking{}, err
 	}
 	if booking.UserID != userID {
+		s.log.WithFields(logrus.Fields{"booking_id": bookingID, "user_id": userID, "booking_owner": booking.UserID}).Warn("user attempting to cancel someone else's booking")
 		return model.Booking{}, apperrors.Forbidden
 	}
 	if booking.Status == model.BookingCancelled {
+		s.log.WithFields(logrus.Fields{"booking_id": bookingID, "user_id": userID}).Info("booking already cancelled")
 		return booking, nil
 	}
-	return s.repo.CancelBooking(ctx, bookingID)
+	err = s.repo.CancelBooking(ctx, bookingID)
+	if err != nil {
+		s.log.WithFields(logrus.Fields{"booking_id": bookingID, "user_id": userID, "error": err.Error()}).Error("failed to cancel booking")
+		return model.Booking{}, err
+	}
+	booking.Status = model.BookingCancelled
+	s.log.WithFields(logrus.Fields{"booking_id": bookingID, "user_id": userID, "status": booking.Status}).Info("booking cancelled successfully")
+	return booking, nil
 }
