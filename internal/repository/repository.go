@@ -28,7 +28,7 @@ func (p *Repository) CreateUser(ctx context.Context, user model.User) (model.Use
 	_, err := p.db.Pool().Exec(ctx, q, user.ID, user.Email, user.PasswordHash, user.Role, user.CreatedAt)
 	if err != nil {
 		if uniqueError(err) {
-			return model.User{}, apperrors.Conflict
+			return model.User{}, apperrors.ErrFooConflict
 		}
 		return model.User{}, err
 	}
@@ -46,7 +46,7 @@ func (p *Repository) GetUserByEmail(ctx context.Context, email string) (model.Us
 	var u model.User
 	err := p.db.Pool().QueryRow(ctx, q, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return model.User{}, apperrors.NotFound
+		return model.User{}, apperrors.ErrFooNotFound
 	}
 	return u, err
 }
@@ -86,7 +86,7 @@ func (p *Repository) CreateSchedule(ctx context.Context, schedule model.Schedule
 	_, err := p.db.Pool().Exec(ctx, q, schedule.ID, schedule.RoomID, daysJSON, schedule.StartTime, schedule.EndTime, time.Now().UTC())
 	if err != nil {
 		if uniqueError(err) {
-			return model.Schedule{}, apperrors.Conflict
+			return model.Schedule{}, apperrors.ErrFooConflict
 		}
 		return model.Schedule{}, err
 	}
@@ -99,7 +99,7 @@ func (p *Repository) SaveSlots(ctx context.Context, slots []model.Slot) error {
 		batch.Queue(`insert into slots(id,room_id,start_at,end_at) values($1,$2,$3,$4) on conflict do nothing`, s.ID, s.RoomID, s.Start, s.End)
 	}
 	br := p.db.Pool().SendBatch(ctx, batch)
-	defer br.Close()
+	defer br.Close() //nolint:errcheck
 	for i := 0; i < len(slots); i++ {
 		if _, err := br.Exec(); err != nil {
 			return err
@@ -137,7 +137,7 @@ func (p *Repository) GetSlotByID(ctx context.Context, slotID uuid.UUID) (model.S
 	var s model.Slot
 	err := p.db.Pool().QueryRow(ctx, `select id,room_id,start_at,end_at from slots where id=$1`, slotID).Scan(&s.ID, &s.RoomID, &s.Start, &s.End)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return model.Slot{}, apperrors.NotFound
+		return model.Slot{}, apperrors.ErrFooNotFound
 	}
 	return s, err
 }
@@ -147,7 +147,7 @@ func (p *Repository) CreateBooking(ctx context.Context, b model.Booking) (model.
 	_, err := p.db.Pool().Exec(ctx, q, b.ID, b.SlotID, b.UserID, b.Status, b.ConferenceLink, b.CreatedAt)
 	if err != nil {
 		if uniqueError(err) {
-			return model.Booking{}, apperrors.Conflict
+			return model.Booking{}, apperrors.ErrFooConflict
 		}
 		return model.Booking{}, err
 	}
@@ -204,7 +204,7 @@ func (p *Repository) GetBooking(ctx context.Context, bookingID uuid.UUID) (model
 	err := p.db.Pool().QueryRow(ctx, `select id,slot_id,user_id,status,conference_link,created_at from bookings where id=$1`, bookingID).
 		Scan(&b.ID, &b.SlotID, &b.UserID, &b.Status, &b.ConferenceLink, &b.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return model.Booking{}, apperrors.NotFound
+		return model.Booking{}, apperrors.ErrFooNotFound
 	}
 	return b, err
 }

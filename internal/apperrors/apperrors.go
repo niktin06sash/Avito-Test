@@ -3,9 +3,9 @@ package apperrors
 import "errors"
 
 var (
-	NotFound     = errors.New("not found")
-	Conflict     = errors.New("conflict")
-	Forbidden    = errors.New("forbidden")
-	BadRequest   = errors.New("bad request")
-	Unauthorized = errors.New("unauthorized")
+	ErrFooNotFound     = errors.New("not found")
+	ErrFooConflict     = errors.New("conflict")
+	ErrFooForbidden    = errors.New("forbidden")
+	ErrFooBadRequest   = errors.New("bad request")
+	ErrFooUnauthorized = errors.New("unauthorized")
 )

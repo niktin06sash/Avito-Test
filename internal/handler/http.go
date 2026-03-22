@@ -55,6 +55,7 @@ func (h *APIHandler) Routes() http.Handler {
 }
 
 func (h *APIHandler) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close() //nolint:errcheck
 	var req PostDummyLoginJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.Warn("invalid json in dummy login")
@@ -77,6 +78,7 @@ func (h *APIHandler) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) PostRegister(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close() //nolint:errcheck
 	var req PostRegisterJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.Warn("invalid json in register request")
@@ -85,7 +87,7 @@ func (h *APIHandler) PostRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := h.service.Register(r.Context(), string(req.Email), req.Password, model.Role(req.Role))
 	if err != nil {
-		if errors.Is(err, apperrors.Conflict) {
+		if errors.Is(err, apperrors.ErrFooConflict) {
 			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "email already exists")
 			return
 		}
@@ -104,6 +106,7 @@ func (h *APIHandler) PostRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close() //nolint:errcheck
 	var req PostLoginJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.Warn("invalid json in login request")
@@ -112,7 +115,7 @@ func (h *APIHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, role, err := h.service.Login(r.Context(), string(req.Email), req.Password)
 	if err != nil {
-		if errors.Is(err, apperrors.NotFound) {
+		if errors.Is(err, apperrors.ErrFooNotFound) {
 			writeError(w, http.StatusUnauthorized, FORBIDDEN, "invalid credentials")
 			return
 		}
@@ -159,6 +162,7 @@ func (h *APIHandler) PostRoomsCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, FORBIDDEN, "admin role required")
 		return
 	}
+	defer r.Body.Close() //nolint:errcheck
 	var req PostRoomsCreateJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID}).Warn("invalid json in create room request")
@@ -186,6 +190,7 @@ func (h *APIHandler) PostRoomsRoomIdScheduleCreate(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusForbidden, FORBIDDEN, "admin role required")
 		return
 	}
+	defer r.Body.Close() //nolint:errcheck
 	var req Schedule
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID}).Warn("invalid json in create schedule request")
@@ -195,11 +200,11 @@ func (h *APIHandler) PostRoomsRoomIdScheduleCreate(w http.ResponseWriter, r *htt
 	schedule, err := h.service.CreateSchedule(r.Context(), uuid.UUID(roomId), req.DaysOfWeek, req.StartTime, req.EndTime)
 	if err != nil {
 		switch {
-		case errors.Is(err, apperrors.NotFound):
+		case errors.Is(err, apperrors.ErrFooNotFound):
 			writeError(w, http.StatusNotFound, ROOMNOTFOUND, "room not found")
-		case errors.Is(err, apperrors.Conflict):
+		case errors.Is(err, apperrors.ErrFooConflict):
 			writeError(w, http.StatusConflict, SCHEDULEEXISTS, "schedule already exists")
-		case errors.Is(err, apperrors.BadRequest):
+		case errors.Is(err, apperrors.ErrFooBadRequest):
 			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid schedule")
 		default:
 			writeInternal(w, err)
@@ -219,7 +224,7 @@ func (h *APIHandler) GetRoomsRoomIdSlotsList(w http.ResponseWriter, r *http.Requ
 	}
 	slots, err := h.service.ListAvailableSlots(r.Context(), uuid.UUID(roomId), time.Time(params.Date.Time))
 	if err != nil {
-		if errors.Is(err, apperrors.NotFound) {
+		if errors.Is(err, apperrors.ErrFooNotFound) {
 			writeError(w, http.StatusNotFound, ROOMNOTFOUND, "room not found")
 			return
 		}
@@ -246,6 +251,7 @@ func (h *APIHandler) PostBookingsCreate(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusForbidden, FORBIDDEN, "user role required")
 		return
 	}
+	defer r.Body.Close() //nolint:errcheck
 	var req PostBookingsCreateJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID}).Warn("invalid json in create booking request")
@@ -256,11 +262,11 @@ func (h *APIHandler) PostBookingsCreate(w http.ResponseWriter, r *http.Request) 
 	booking, err := h.service.CreateBooking(r.Context(), uuid.UUID(req.SlotId), p.UserID, createLink)
 	if err != nil {
 		switch {
-		case errors.Is(err, apperrors.NotFound):
+		case errors.Is(err, apperrors.ErrFooNotFound):
 			writeError(w, http.StatusNotFound, SLOTNOTFOUND, "slot not found")
-		case errors.Is(err, apperrors.Conflict):
+		case errors.Is(err, apperrors.ErrFooConflict):
 			writeError(w, http.StatusConflict, SLOTALREADYBOOKED, "slot already booked")
-		case errors.Is(err, apperrors.BadRequest):
+		case errors.Is(err, apperrors.ErrFooBadRequest):
 			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "slot in past")
 		default:
 			writeInternal(w, err)
@@ -292,7 +298,7 @@ func (h *APIHandler) GetBookingsList(w http.ResponseWriter, r *http.Request, par
 	}
 	bookings, total, err := h.service.ListBookings(r.Context(), page, pageSize)
 	if err != nil {
-		if errors.Is(err, apperrors.BadRequest) {
+		if errors.Is(err, apperrors.ErrFooBadRequest) {
 			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid pagination")
 			return
 		}
@@ -348,9 +354,9 @@ func (h *APIHandler) PostBookingsBookingIdCancel(w http.ResponseWriter, r *http.
 	booking, err := h.service.CancelBooking(r.Context(), uuid.UUID(bookingId), p.UserID)
 	if err != nil {
 		switch {
-		case errors.Is(err, apperrors.NotFound):
+		case errors.Is(err, apperrors.ErrFooNotFound):
 			writeError(w, http.StatusNotFound, BOOKINGNOTFOUND, "booking not found")
-		case errors.Is(err, apperrors.Forbidden):
+		case errors.Is(err, apperrors.ErrFooForbidden):
 			writeError(w, http.StatusForbidden, FORBIDDEN, "cannot cancel another user's booking")
 		default:
 			writeInternal(w, err)

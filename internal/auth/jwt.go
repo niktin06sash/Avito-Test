@@ -22,11 +22,11 @@ func ParseToken(secret []byte, token string) (uuid.UUID, model.Role, error) {
 		return secret, nil
 	})
 	if err != nil || !parsed.Valid {
-		return uuid.Nil, "", apperrors.Unauthorized
+		return uuid.Nil, "", apperrors.ErrFooUnauthorized
 	}
 	id, err := uuid.Parse(claims.UserID)
 	if err != nil {
-		return uuid.Nil, "", apperrors.Unauthorized
+		return uuid.Nil, "", apperrors.ErrFooUnauthorized
 	}
 	return id, model.Role(claims.Role), nil
 }

@@ -37,11 +37,11 @@ type Room struct {
 }
 
 type Schedule struct {
-	ID        uuid.UUID
-	RoomID    uuid.UUID
+	ID         uuid.UUID
+	RoomID     uuid.UUID
 	DaysOfWeek []int
-	StartTime string
-	EndTime   string
+	StartTime  string
+	EndTime    string
 }
 
 type Slot struct {
