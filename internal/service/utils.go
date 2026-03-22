@@ -1,7 +1,7 @@
 package service
 
 import (
-	"errors"
+	"test-backend/internal/apperrors"
 	"time"
 )
 
@@ -15,7 +15,7 @@ func parseClockRange(start, end string) (time.Time, time.Time, error) {
 		return time.Time{}, time.Time{}, err
 	}
 	if !s.Before(e) {
-		return time.Time{}, time.Time{}, errors.New("start must be before end")
+		return time.Time{}, time.Time{}, apperrors.ErrFooBadRequest
 	}
 	return s, e, nil
 }

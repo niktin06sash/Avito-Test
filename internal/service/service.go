@@ -38,6 +38,7 @@ type Repository interface {
 	CancelBooking(ctx context.Context, bookingID uuid.UUID) error
 }
 
+//go:generate mockgen -source=service.go -destination=mocks/mock.go
 type Service struct {
 	repo Repository
 	log  *logrus.Entry
@@ -82,7 +83,7 @@ func (s *Service) DummyLogin(ctx context.Context, role model.Role) (uuid.UUID, m
 		id = fixedUserID
 	default:
 		s.log.WithField("role", role).Warn("invalid role for dummy login")
-		return uuid.Nil, "", apperrors.BadRequest
+		return uuid.Nil, "", apperrors.ErrFooBadRequest
 	}
 	s.log.WithFields(logrus.Fields{"user_id": id, "role": role}).Info("dummy login")
 	return id, role, nil
@@ -118,7 +119,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (uuid.UUID,
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
 		s.log.WithField("email", email).Warn("invalid password for login")
-		return uuid.Nil, "", apperrors.Forbidden
+		return uuid.Nil, "", apperrors.ErrFooForbidden
 	}
 	s.log.WithFields(logrus.Fields{"user_id": user.ID, "email": email, "role": user.Role}).Info("login successful")
 	return user.ID, user.Role, nil
@@ -158,18 +159,18 @@ func (s *Service) CreateSchedule(ctx context.Context, roomID uuid.UUID, days []i
 	}
 	if !ok {
 		s.log.WithField("room_id", roomID).Warn("room not found for schedule")
-		return model.Schedule{}, apperrors.NotFound
+		return model.Schedule{}, apperrors.ErrFooNotFound
 	}
 
 	startClock, endClock, err := parseClockRange(startTime, endTime)
 	if err != nil {
 		s.log.WithFields(logrus.Fields{"start_time": startTime, "end_time": endTime, "error": err.Error()}).Warn("invalid time range")
-		return model.Schedule{}, apperrors.BadRequest
+		return model.Schedule{}, apperrors.ErrFooBadRequest
 	}
 	for _, d := range days {
 		if d < 1 || d > 7 {
 			s.log.WithField("days", days).Warn("invalid days in schedule")
-			return model.Schedule{}, apperrors.BadRequest
+			return model.Schedule{}, apperrors.ErrFooBadRequest
 		}
 	}
 
@@ -228,7 +229,7 @@ func (s *Service) ListAvailableSlots(ctx context.Context, roomID uuid.UUID, date
 	}
 	if !ok {
 		s.log.WithField("room_id", roomID).Warn("room not found for slots listing")
-		return nil, apperrors.NotFound
+		return nil, apperrors.ErrFooNotFound
 	}
 	slots, err := s.repo.ListAvailableSlotsByRoomAndDate(ctx, roomID, date)
 	if err != nil {
@@ -247,7 +248,7 @@ func (s *Service) CreateBooking(ctx context.Context, slotID, userID uuid.UUID, c
 	}
 	if slot.Start.Before(time.Now().UTC()) {
 		s.log.WithFields(logrus.Fields{"slot_id": slotID, "slot_start": slot.Start}).Warn("slot is in the past")
-		return model.Booking{}, apperrors.BadRequest
+		return model.Booking{}, apperrors.ErrFooBadRequest
 	}
 	var link *string
 	if createConferenceLink {
@@ -273,7 +274,7 @@ func (s *Service) CreateBooking(ctx context.Context, slotID, userID uuid.UUID, c
 func (s *Service) ListBookings(ctx context.Context, page, pageSize int) ([]model.Booking, int, error) {
 	if page < 1 || pageSize < 1 || pageSize > 100 {
 		s.log.WithFields(logrus.Fields{"page": page, "page_size": pageSize}).Warn("invalid pagination parameters")
-		return nil, 0, apperrors.BadRequest
+		return nil, 0, apperrors.ErrFooBadRequest
 	}
 	bookings, total, err := s.repo.ListBookings(ctx, page, pageSize)
 	if err != nil {
@@ -302,7 +303,7 @@ func (s *Service) CancelBooking(ctx context.Context, bookingID, userID uuid.UUID
 	}
 	if booking.UserID != userID {
 		s.log.WithFields(logrus.Fields{"booking_id": bookingID, "user_id": userID, "booking_owner": booking.UserID}).Warn("user attempting to cancel someone else's booking")
-		return model.Booking{}, apperrors.Forbidden
+		return model.Booking{}, apperrors.ErrFooForbidden
 	}
 	if booking.Status == model.BookingCancelled {
 		s.log.WithFields(logrus.Fields{"booking_id": bookingID, "user_id": userID}).Info("booking already cancelled")
