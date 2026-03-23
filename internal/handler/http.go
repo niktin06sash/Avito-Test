@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	httpSwagger "github.com/swaggo/http-swagger"
 
 	"test-backend/internal/apperrors"
 	"test-backend/internal/auth"
@@ -39,17 +41,27 @@ func New(svc Service, jwtSecret string, log *logrus.Entry) *APIHandler {
 	return &APIHandler{service: svc, secret: jwtSecret, log: log}
 }
 
+//go:embed api.yaml
+var openapiSpec []byte
+
 func (h *APIHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/docs/api.yaml", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-yaml")
+		w.Write(openapiSpec)
+	})
+	mux.Handle("/swagger/", httpSwagger.Handler(
+		httpSwagger.URL("/docs/api.yaml"),
+	))
 	api := HandlerWithOptions(h, StdHTTPServerOptions{
 		Middlewares: []MiddlewareFunc{JWTMiddleware([]byte(h.secret), h.log)},
 		ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeError(w, http.StatusBadRequest, INVALIDREQUEST, err.Error())
 		},
 	})
-	mux.Handle("/_info", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/_info", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	})
 	mux.Handle("/", api)
 	return mux
 }
@@ -59,12 +71,16 @@ func (h *APIHandler) PostDummyLogin(w http.ResponseWriter, r *http.Request) {
 	var req PostDummyLoginJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.Warn("invalid json in dummy login")
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid json")
+		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		return
 	}
 	userID, role, err := h.service.DummyLogin(r.Context(), model.Role(req.Role))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid role")
+		if errors.Is(err, apperrors.ErrFooBadRequest) {
+			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
+			return
+		}
+		writeInternal(w, err)
 		return
 	}
 	token, err := auth.SignToken([]byte(h.secret), userID, role)
@@ -82,13 +98,13 @@ func (h *APIHandler) PostRegister(w http.ResponseWriter, r *http.Request) {
 	var req PostRegisterJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.Warn("invalid json in register request")
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid json")
+		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		return
 	}
 	user, err := h.service.Register(r.Context(), string(req.Email), req.Password, model.Role(req.Role))
 	if err != nil {
 		if errors.Is(err, apperrors.ErrFooConflict) {
-			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "email already exists")
+			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 			return
 		}
 		writeInternal(w, err)
@@ -110,13 +126,13 @@ func (h *APIHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	var req PostLoginJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.Warn("invalid json in login request")
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid json")
+		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		return
 	}
 	userID, role, err := h.service.Login(r.Context(), string(req.Email), req.Password)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrFooNotFound) {
-			writeError(w, http.StatusUnauthorized, FORBIDDEN, "invalid credentials")
+			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 			return
 		}
 		writeInternal(w, err)
@@ -159,14 +175,14 @@ func (h *APIHandler) PostRoomsCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if p.Role != model.RoleAdmin {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("create room: insufficient permissions")
-		writeError(w, http.StatusForbidden, FORBIDDEN, "admin role required")
+		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
 		return
 	}
 	defer r.Body.Close() //nolint:errcheck
 	var req PostRoomsCreateJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID}).Warn("invalid json in create room request")
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid json")
+		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		return
 	}
 	room, err := h.service.CreateRoom(r.Context(), req.Name, req.Description, req.Capacity)
@@ -187,25 +203,25 @@ func (h *APIHandler) PostRoomsRoomIdScheduleCreate(w http.ResponseWriter, r *htt
 	}
 	if p.Role != model.RoleAdmin {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("create schedule: insufficient permissions")
-		writeError(w, http.StatusForbidden, FORBIDDEN, "admin role required")
+		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
 		return
 	}
 	defer r.Body.Close() //nolint:errcheck
 	var req Schedule
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID}).Warn("invalid json in create schedule request")
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid json")
+		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		return
 	}
 	schedule, err := h.service.CreateSchedule(r.Context(), uuid.UUID(roomId), req.DaysOfWeek, req.StartTime, req.EndTime)
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrFooNotFound):
-			writeError(w, http.StatusNotFound, ROOMNOTFOUND, "room not found")
+			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
 		case errors.Is(err, apperrors.ErrFooConflict):
-			writeError(w, http.StatusConflict, SCHEDULEEXISTS, "schedule already exists")
+			writeError(w, http.StatusConflict, SCHEDULEEXISTS, "schedule for this room already exists and cannot be changed")
 		case errors.Is(err, apperrors.ErrFooBadRequest):
-			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid schedule")
+			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		default:
 			writeInternal(w, err)
 		}
@@ -225,7 +241,7 @@ func (h *APIHandler) GetRoomsRoomIdSlotsList(w http.ResponseWriter, r *http.Requ
 	slots, err := h.service.ListAvailableSlots(r.Context(), uuid.UUID(roomId), time.Time(params.Date.Time))
 	if err != nil {
 		if errors.Is(err, apperrors.ErrFooNotFound) {
-			writeError(w, http.StatusNotFound, ROOMNOTFOUND, "room not found")
+			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
 			return
 		}
 		writeInternal(w, err)
@@ -248,14 +264,14 @@ func (h *APIHandler) PostBookingsCreate(w http.ResponseWriter, r *http.Request) 
 	}
 	if p.Role != model.RoleUser {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("create booking: insufficient permissions")
-		writeError(w, http.StatusForbidden, FORBIDDEN, "user role required")
+		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
 		return
 	}
 	defer r.Body.Close() //nolint:errcheck
 	var req PostBookingsCreateJSONBody
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID}).Warn("invalid json in create booking request")
-		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid json")
+		writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		return
 	}
 	createLink := req.CreateConferenceLink != nil && *req.CreateConferenceLink
@@ -263,11 +279,11 @@ func (h *APIHandler) PostBookingsCreate(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrFooNotFound):
-			writeError(w, http.StatusNotFound, SLOTNOTFOUND, "slot not found")
+			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
 		case errors.Is(err, apperrors.ErrFooConflict):
-			writeError(w, http.StatusConflict, SLOTALREADYBOOKED, "slot already booked")
+			writeError(w, http.StatusConflict, SLOTALREADYBOOKED, "slot is already booked")
 		case errors.Is(err, apperrors.ErrFooBadRequest):
-			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "slot in past")
+			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 		default:
 			writeInternal(w, err)
 		}
@@ -286,7 +302,7 @@ func (h *APIHandler) GetBookingsList(w http.ResponseWriter, r *http.Request, par
 	}
 	if p.Role != model.RoleAdmin {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("list bookings: insufficient permissions")
-		writeError(w, http.StatusForbidden, FORBIDDEN, "admin role required")
+		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
 		return
 	}
 	page, pageSize := 1, 20
@@ -299,7 +315,7 @@ func (h *APIHandler) GetBookingsList(w http.ResponseWriter, r *http.Request, par
 	bookings, total, err := h.service.ListBookings(r.Context(), page, pageSize)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrFooBadRequest) {
-			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid pagination")
+			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 			return
 		}
 		writeInternal(w, err)
@@ -323,7 +339,7 @@ func (h *APIHandler) GetBookingsMy(w http.ResponseWriter, r *http.Request) {
 	}
 	if p.Role != model.RoleUser {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("list my bookings: insufficient permissions")
-		writeError(w, http.StatusForbidden, FORBIDDEN, "user role required")
+		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
 		return
 	}
 	bookings, err := h.service.ListMyBookings(r.Context(), p.UserID)
@@ -348,14 +364,14 @@ func (h *APIHandler) PostBookingsBookingIdCancel(w http.ResponseWriter, r *http.
 	}
 	if p.Role != model.RoleUser {
 		h.log.WithFields(logrus.Fields{"booking_id": bookingId, "user_id": p.UserID, "role": p.Role}).Warn("cancel booking: insufficient permissions")
-		writeError(w, http.StatusForbidden, FORBIDDEN, "user role required")
+		writeError(w, http.StatusForbidden, FORBIDDEN, "cannot cancel another user's booking")
 		return
 	}
 	booking, err := h.service.CancelBooking(r.Context(), uuid.UUID(bookingId), p.UserID)
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrFooNotFound):
-			writeError(w, http.StatusNotFound, BOOKINGNOTFOUND, "booking not found")
+			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
 		case errors.Is(err, apperrors.ErrFooForbidden):
 			writeError(w, http.StatusForbidden, FORBIDDEN, "cannot cancel another user's booking")
 		default:
