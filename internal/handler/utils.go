@@ -38,7 +38,7 @@ func mustPrincipal(w http.ResponseWriter, r *http.Request) (principal, bool) {
 	return p, true
 }
 
-func toUser(u model.User) User {
+func toUser(u *model.User) User {
 	id := u.ID
 	email := u.Email
 	createdAt := u.CreatedAt
@@ -50,13 +50,13 @@ func toUser(u model.User) User {
 	}
 }
 
-func toRoom(r model.Room) Room {
+func toRoom(r *model.Room) Room {
 	id := r.ID
 	createdAt := r.CreatedAt
 	return Room{Id: id, Name: r.Name, Description: r.Description, Capacity: r.Capacity, CreatedAt: &createdAt}
 }
 
-func toSchedule(s model.Schedule) Schedule {
+func toSchedule(s *model.Schedule) Schedule {
 	id := s.ID
 	return Schedule{
 		Id:         &id,
@@ -67,11 +67,11 @@ func toSchedule(s model.Schedule) Schedule {
 	}
 }
 
-func toSlot(s model.Slot) Slot {
+func toSlot(s *model.Slot) Slot {
 	return Slot{Id: s.ID, RoomId: s.RoomID, Start: s.Start, End: s.End}
 }
 
-func toBooking(b model.Booking) Booking {
+func toBooking(b *model.Booking) Booking {
 	id := b.ID
 	slotID := b.SlotID
 	userID := b.UserID

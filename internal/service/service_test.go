@@ -42,9 +42,9 @@ func TestRegister(t *testing.T) {
 			service, repo, ctrl := setupService(t)
 			defer ctrl.Finish()
 
-			repo.EXPECT().CreateUser(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, u model.User) (model.User, error) {
+			repo.EXPECT().CreateUser(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, u *model.User) (*model.User, error) {
 				if tc.repoErr != nil {
-					return model.User{}, tc.repoErr
+					return nil, tc.repoErr
 				}
 				return u, nil
 			})
@@ -72,13 +72,13 @@ func TestLogin(t *testing.T) {
 		name      string
 		email     string
 		password  string
-		user      model.User
+		user      *model.User
 		repoErr   error
 		wantError error
 	}{
-		{name: "ok", email: "a@test.local", password: "secret", user: model.User{ID: uuid.New(), Email: "a@test.local", PasswordHash: string(passHash), Role: model.RoleUser}, repoErr: nil, wantError: nil},
-		{name: "wrong password", email: "a@test.local", password: "wrong", user: model.User{ID: uuid.New(), Email: "a@test.local", PasswordHash: string(passHash), Role: model.RoleUser}, repoErr: nil, wantError: apperrors.ErrFooForbidden},
-		{name: "not found", email: "b@test.local", password: "secret", user: model.User{}, repoErr: apperrors.ErrFooNotFound, wantError: apperrors.ErrFooNotFound},
+		{name: "ok", email: "a@test.local", password: "secret", user: &model.User{ID: uuid.New(), Email: "a@test.local", PasswordHash: string(passHash), Role: model.RoleUser}, repoErr: nil, wantError: nil},
+		{name: "wrong password", email: "a@test.local", password: "wrong", user: &model.User{ID: uuid.New(), Email: "a@test.local", PasswordHash: string(passHash), Role: model.RoleUser}, repoErr: nil, wantError: apperrors.ErrFooForbidden},
+		{name: "not found", email: "b@test.local", password: "secret", user: nil, repoErr: apperrors.ErrFooNotFound, wantError: apperrors.ErrFooNotFound},
 	}
 
 	for _, tc := range cases {
@@ -123,9 +123,9 @@ func TestCreateRoom(t *testing.T) {
 			service, repo, ctrl := setupService(t)
 			defer ctrl.Finish()
 
-			repo.EXPECT().CreateRoom(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, r model.Room) (model.Room, error) {
+			repo.EXPECT().CreateRoom(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, r *model.Room) (*model.Room, error) {
 				if tc.repoErr != nil {
-					return model.Room{}, tc.repoErr
+					return nil, tc.repoErr
 				}
 				return r, nil
 			})
@@ -195,9 +195,9 @@ func TestCreateSchedule(t *testing.T) {
 				return
 			}
 
-			repo.EXPECT().CreateSchedule(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, s model.Schedule) (model.Schedule, error) {
+			repo.EXPECT().CreateSchedule(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, s *model.Schedule) (*model.Schedule, error) {
 				if tc.createErr != nil {
-					return model.Schedule{}, tc.createErr
+					return nil, tc.createErr
 				}
 				return s, nil
 			})
@@ -229,13 +229,13 @@ func TestListAvailableSlots(t *testing.T) {
 		name       string
 		roomExists bool
 		existsErr  error
-		slots      []model.Slot
+		slots      []*model.Slot
 		repoErr    error
 		wantErr    error
 	}{
 		{name: "room not found", roomExists: false, existsErr: nil, wantErr: apperrors.ErrFooNotFound},
 		{name: "repo error on exists", roomExists: false, existsErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
-		{name: "list slots success", roomExists: true, existsErr: nil, slots: []model.Slot{{ID: uuid.New()}}, repoErr: nil, wantErr: nil},
+		{name: "list slots success", roomExists: true, existsErr: nil, slots: []*model.Slot{{ID: uuid.New()}}, repoErr: nil, wantErr: nil},
 		{name: "list slots fail", roomExists: true, existsErr: nil, slots: nil, repoErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
 	}
 
@@ -277,18 +277,18 @@ func TestListAvailableSlots(t *testing.T) {
 func TestCreateBooking(t *testing.T) {
 	slotID := uuid.New()
 	userID := uuid.New()
-	futureSlot := model.Slot{ID: slotID, Start: time.Now().UTC().Add(1 * time.Hour), End: time.Now().UTC().Add(2 * time.Hour)}
-	pastSlot := model.Slot{ID: slotID, Start: time.Now().UTC().Add(-2 * time.Hour), End: time.Now().UTC().Add(-1 * time.Hour)}
+	futureSlot := &model.Slot{ID: slotID, Start: time.Now().UTC().Add(1 * time.Hour), End: time.Now().UTC().Add(2 * time.Hour)}
+	pastSlot := &model.Slot{ID: slotID, Start: time.Now().UTC().Add(-2 * time.Hour), End: time.Now().UTC().Add(-1 * time.Hour)}
 	cases := []struct {
 		name                 string
-		slot                 model.Slot
+		slot                 *model.Slot
 		createConferenceLink bool
 		getSlotErr           error
 		createBookingErr     error
 		wantErr              error
 		wantLink             bool
 	}{
-		{name: "slot not found", slot: model.Slot{}, getSlotErr: apperrors.ErrFooNotFound, wantErr: apperrors.ErrFooNotFound},
+		{name: "slot not found", slot: nil, getSlotErr: apperrors.ErrFooNotFound, wantErr: apperrors.ErrFooNotFound},
 		{name: "slot in past", slot: pastSlot, getSlotErr: nil, wantErr: apperrors.ErrFooBadRequest},
 		{name: "repo create booking error", slot: futureSlot, getSlotErr: nil, createBookingErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
 		{name: "success no link", slot: futureSlot, getSlotErr: nil, createConferenceLink: false, wantErr: nil, wantLink: false},
@@ -309,9 +309,9 @@ func TestCreateBooking(t *testing.T) {
 				return
 			}
 
-			repo.EXPECT().CreateBooking(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, b model.Booking) (model.Booking, error) {
+			repo.EXPECT().CreateBooking(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, b *model.Booking) (*model.Booking, error) {
 				if tc.createBookingErr != nil {
-					return model.Booking{}, tc.createBookingErr
+					return nil, tc.createBookingErr
 				}
 				return b, nil
 			})
@@ -345,18 +345,18 @@ func TestCancelBooking(t *testing.T) {
 	otherID := uuid.New()
 	cases := []struct {
 		name       string
-		booking    model.Booking
+		booking    *model.Booking
 		getErr     error
 		cancelErr  error
 		userID     uuid.UUID
 		wantErr    error
 		wantStatus model.BookingStatus
 	}{
-		{name: "get error", getErr: apperrors.ErrFooNotFound, userID: ownerID, wantErr: apperrors.ErrFooNotFound},
-		{name: "forbidden", booking: model.Booking{ID: bookingID, UserID: ownerID, Status: model.BookingActive}, userID: otherID, wantErr: apperrors.ErrFooForbidden},
-		{name: "already cancelled", booking: model.Booking{ID: bookingID, UserID: ownerID, Status: model.BookingCancelled}, userID: ownerID, wantErr: nil, wantStatus: model.BookingCancelled},
-		{name: "success", booking: model.Booking{ID: bookingID, UserID: ownerID, Status: model.BookingActive}, userID: ownerID, cancelErr: nil, wantErr: nil, wantStatus: model.BookingCancelled},
-		{name: "cancel repo error", booking: model.Booking{ID: bookingID, UserID: ownerID, Status: model.BookingActive}, userID: ownerID, cancelErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
+		{name: "get error", booking: nil, getErr: apperrors.ErrFooNotFound, userID: ownerID, wantErr: apperrors.ErrFooNotFound},
+		{name: "forbidden", booking: &model.Booking{UserID: ownerID}, userID: otherID, wantErr: apperrors.ErrFooForbidden},
+		{name: "already cancelled", booking: &model.Booking{ID: bookingID, UserID: ownerID, Status: model.BookingCancelled}, userID: ownerID, wantErr: nil, wantStatus: model.BookingCancelled},
+		{name: "success", booking: &model.Booking{ID: bookingID, UserID: ownerID, Status: model.BookingActive}, userID: ownerID, cancelErr: nil, wantErr: nil, wantStatus: model.BookingCancelled},
+		{name: "cancel repo error", booking: &model.Booking{UserID: ownerID}, userID: ownerID, cancelErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
 	}
 
 	for _, tc := range cases {
@@ -365,7 +365,7 @@ func TestCancelBooking(t *testing.T) {
 			defer ctrl.Finish()
 
 			repo.EXPECT().GetBooking(gomock.Any(), bookingID).Return(tc.booking, tc.getErr)
-			if tc.getErr != nil || tc.wantErr == apperrors.ErrFooForbidden || tc.booking.Status == model.BookingCancelled {
+			if tc.getErr != nil || tc.wantErr == apperrors.ErrFooForbidden || (tc.booking != nil && tc.booking.Status == model.BookingCancelled) {
 				out, err := service.CancelBooking(context.Background(), bookingID, tc.userID)
 				if tc.wantErr != nil {
 					if !errors.Is(err, tc.wantErr) {
@@ -405,14 +405,14 @@ func TestListBookings(t *testing.T) {
 		name      string
 		page      int
 		pageSize  int
-		repoRes   []model.Booking
+		repoRes   []*model.Booking
 		repoTotal int
 		repoErr   error
 		wantErr   error
 	}{
 		{name: "invalid paging", page: 0, pageSize: 10, wantErr: apperrors.ErrFooBadRequest},
 		{name: "repo error", page: 1, pageSize: 10, repoErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
-		{name: "success", page: 2, pageSize: 10, repoRes: []model.Booking{{ID: uuid.New()}}, repoTotal: 1, wantErr: nil},
+		{name: "success", page: 2, pageSize: 10, repoRes: []*model.Booking{{ID: uuid.New()}}, repoTotal: 1, wantErr: nil},
 	}
 
 	for _, tc := range cases {
@@ -451,12 +451,12 @@ func TestListMyBookings(t *testing.T) {
 	cases := []struct {
 		name    string
 		userID  uuid.UUID
-		repoRes []model.Booking
+		repoRes []*model.Booking
 		repoErr error
 		wantErr error
 	}{
 		{name: "repo error", userID: userID, repoErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
-		{name: "success", userID: userID, repoRes: []model.Booking{{ID: uuid.New(), UserID: userID}}, wantErr: nil},
+		{name: "success", userID: userID, repoRes: []*model.Booking{{ID: uuid.New(), UserID: userID}}, wantErr: nil},
 	}
 
 	for _, tc := range cases {
@@ -485,11 +485,11 @@ func TestListMyBookings(t *testing.T) {
 func TestListRooms(t *testing.T) {
 	cases := []struct {
 		name    string
-		rooms   []model.Room
+		rooms   []*model.Room
 		repoErr error
 		wantErr error
 	}{
-		{name: "success", rooms: []model.Room{{ID: uuid.New(), Name: "A"}}, repoErr: nil, wantErr: nil},
+		{name: "success", rooms: []*model.Room{{ID: uuid.New(), Name: "A"}}, repoErr: nil, wantErr: nil},
 		{name: "repo error", rooms: nil, repoErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict},
 	}
 

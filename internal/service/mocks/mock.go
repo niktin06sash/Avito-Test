@@ -58,10 +58,10 @@ func (mr *MockRepositoryMockRecorder) CancelBooking(ctx, bookingID any) *gomock.
 }
 
 // CreateBooking mocks base method.
-func (m *MockRepository) CreateBooking(ctx context.Context, b model.Booking) (model.Booking, error) {
+func (m *MockRepository) CreateBooking(ctx context.Context, b *model.Booking) (*model.Booking, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateBooking", ctx, b)
-	ret0, _ := ret[0].(model.Booking)
+	ret0, _ := ret[0].(*model.Booking)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -73,10 +73,10 @@ func (mr *MockRepositoryMockRecorder) CreateBooking(ctx, b any) *gomock.Call {
 }
 
 // CreateRoom mocks base method.
-func (m *MockRepository) CreateRoom(ctx context.Context, room model.Room) (model.Room, error) {
+func (m *MockRepository) CreateRoom(ctx context.Context, room *model.Room) (*model.Room, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRoom", ctx, room)
-	ret0, _ := ret[0].(model.Room)
+	ret0, _ := ret[0].(*model.Room)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -88,10 +88,10 @@ func (mr *MockRepositoryMockRecorder) CreateRoom(ctx, room any) *gomock.Call {
 }
 
 // CreateSchedule mocks base method.
-func (m *MockRepository) CreateSchedule(ctx context.Context, schedule model.Schedule) (model.Schedule, error) {
+func (m *MockRepository) CreateSchedule(ctx context.Context, schedule *model.Schedule) (*model.Schedule, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSchedule", ctx, schedule)
-	ret0, _ := ret[0].(model.Schedule)
+	ret0, _ := ret[0].(*model.Schedule)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -103,10 +103,10 @@ func (mr *MockRepositoryMockRecorder) CreateSchedule(ctx, schedule any) *gomock.
 }
 
 // CreateUser mocks base method.
-func (m *MockRepository) CreateUser(ctx context.Context, user model.User) (model.User, error) {
+func (m *MockRepository) CreateUser(ctx context.Context, user *model.User) (*model.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateUser", ctx, user)
-	ret0, _ := ret[0].(model.User)
+	ret0, _ := ret[0].(*model.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -118,7 +118,7 @@ func (mr *MockRepositoryMockRecorder) CreateUser(ctx, user any) *gomock.Call {
 }
 
 // EnsureUser mocks base method.
-func (m *MockRepository) EnsureUser(ctx context.Context, user model.User) error {
+func (m *MockRepository) EnsureUser(ctx context.Context, user *model.User) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EnsureUser", ctx, user)
 	ret0, _ := ret[0].(error)
@@ -132,10 +132,10 @@ func (mr *MockRepositoryMockRecorder) EnsureUser(ctx, user any) *gomock.Call {
 }
 
 // GetBooking mocks base method.
-func (m *MockRepository) GetBooking(ctx context.Context, bookingID uuid.UUID) (model.Booking, error) {
+func (m *MockRepository) GetBooking(ctx context.Context, bookingID uuid.UUID) (*model.Booking, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBooking", ctx, bookingID)
-	ret0, _ := ret[0].(model.Booking)
+	ret0, _ := ret[0].(*model.Booking)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -147,10 +147,10 @@ func (mr *MockRepositoryMockRecorder) GetBooking(ctx, bookingID any) *gomock.Cal
 }
 
 // GetSlotByID mocks base method.
-func (m *MockRepository) GetSlotByID(ctx context.Context, slotID uuid.UUID) (model.Slot, error) {
+func (m *MockRepository) GetSlotByID(ctx context.Context, slotID uuid.UUID) (*model.Slot, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSlotByID", ctx, slotID)
-	ret0, _ := ret[0].(model.Slot)
+	ret0, _ := ret[0].(*model.Slot)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -162,10 +162,10 @@ func (mr *MockRepositoryMockRecorder) GetSlotByID(ctx, slotID any) *gomock.Call 
 }
 
 // GetUserByEmail mocks base method.
-func (m *MockRepository) GetUserByEmail(ctx context.Context, email string) (model.User, error) {
+func (m *MockRepository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserByEmail", ctx, email)
-	ret0, _ := ret[0].(model.User)
+	ret0, _ := ret[0].(*model.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -177,10 +177,10 @@ func (mr *MockRepositoryMockRecorder) GetUserByEmail(ctx, email any) *gomock.Cal
 }
 
 // ListAvailableSlotsByRoomAndDate mocks base method.
-func (m *MockRepository) ListAvailableSlotsByRoomAndDate(ctx context.Context, roomID uuid.UUID, date time.Time) ([]model.Slot, error) {
+func (m *MockRepository) ListAvailableSlotsByRoomAndDate(ctx context.Context, roomID uuid.UUID, date time.Time) ([]*model.Slot, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAvailableSlotsByRoomAndDate", ctx, roomID, date)
-	ret0, _ := ret[0].([]model.Slot)
+	ret0, _ := ret[0].([]*model.Slot)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -192,10 +192,10 @@ func (mr *MockRepositoryMockRecorder) ListAvailableSlotsByRoomAndDate(ctx, roomI
 }
 
 // ListBookings mocks base method.
-func (m *MockRepository) ListBookings(ctx context.Context, page, pageSize int) ([]model.Booking, int, error) {
+func (m *MockRepository) ListBookings(ctx context.Context, page, pageSize int) ([]*model.Booking, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListBookings", ctx, page, pageSize)
-	ret0, _ := ret[0].([]model.Booking)
+	ret0, _ := ret[0].([]*model.Booking)
 	ret1, _ := ret[1].(int)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -208,10 +208,10 @@ func (mr *MockRepositoryMockRecorder) ListBookings(ctx, page, pageSize any) *gom
 }
 
 // ListMyFutureBookings mocks base method.
-func (m *MockRepository) ListMyFutureBookings(ctx context.Context, userID uuid.UUID, now time.Time) ([]model.Booking, error) {
+func (m *MockRepository) ListMyFutureBookings(ctx context.Context, userID uuid.UUID, now time.Time) ([]*model.Booking, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListMyFutureBookings", ctx, userID, now)
-	ret0, _ := ret[0].([]model.Booking)
+	ret0, _ := ret[0].([]*model.Booking)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -223,10 +223,10 @@ func (mr *MockRepositoryMockRecorder) ListMyFutureBookings(ctx, userID, now any)
 }
 
 // ListRooms mocks base method.
-func (m *MockRepository) ListRooms(ctx context.Context) ([]model.Room, error) {
+func (m *MockRepository) ListRooms(ctx context.Context) ([]*model.Room, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListRooms", ctx)
-	ret0, _ := ret[0].([]model.Room)
+	ret0, _ := ret[0].([]*model.Room)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -253,7 +253,7 @@ func (mr *MockRepositoryMockRecorder) RoomExists(ctx, roomID any) *gomock.Call {
 }
 
 // SaveSlots mocks base method.
-func (m *MockRepository) SaveSlots(ctx context.Context, slots []model.Slot) error {
+func (m *MockRepository) SaveSlots(ctx context.Context, slots []*model.Slot) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SaveSlots", ctx, slots)
 	ret0, _ := ret[0].(error)

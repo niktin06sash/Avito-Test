@@ -19,16 +19,16 @@ import (
 
 type Service interface {
 	DummyLogin(ctx context.Context, role model.Role) (uuid.UUID, model.Role, error)
-	Register(ctx context.Context, email, password string, role model.Role) (model.User, error)
+	Register(ctx context.Context, email, password string, role model.Role) (*model.User, error)
 	Login(ctx context.Context, email, password string) (uuid.UUID, model.Role, error)
-	CreateRoom(ctx context.Context, name string, description *string, capacity *int) (model.Room, error)
-	ListRooms(ctx context.Context) ([]model.Room, error)
-	CreateSchedule(ctx context.Context, roomID uuid.UUID, days []int, startTime, endTime string) (model.Schedule, error)
-	ListAvailableSlots(ctx context.Context, roomID uuid.UUID, date time.Time) ([]model.Slot, error)
-	CreateBooking(ctx context.Context, slotID, userID uuid.UUID, createConferenceLink bool) (model.Booking, error)
-	ListBookings(ctx context.Context, page, pageSize int) ([]model.Booking, int, error)
-	ListMyBookings(ctx context.Context, userID uuid.UUID) ([]model.Booking, error)
-	CancelBooking(ctx context.Context, bookingID, userID uuid.UUID) (model.Booking, error)
+	CreateRoom(ctx context.Context, name string, description *string, capacity *int) (*model.Room, error)
+	ListRooms(ctx context.Context) ([]*model.Room, error)
+	CreateSchedule(ctx context.Context, roomID uuid.UUID, days []int, startTime, endTime string) (*model.Schedule, error)
+	ListAvailableSlots(ctx context.Context, roomID uuid.UUID, date time.Time) ([]*model.Slot, error)
+	CreateBooking(ctx context.Context, slotID, userID uuid.UUID, createConferenceLink bool) (*model.Booking, error)
+	ListBookings(ctx context.Context, page, pageSize int) ([]*model.Booking, int, error)
+	ListMyBookings(ctx context.Context, userID uuid.UUID) ([]*model.Booking, error)
+	CancelBooking(ctx context.Context, bookingID, userID uuid.UUID) (*model.Booking, error)
 }
 
 type APIHandler struct {
@@ -131,7 +131,7 @@ func (h *APIHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, role, err := h.service.Login(r.Context(), string(req.Email), req.Password)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrFooNotFound) {
+		if errors.Is(err, apperrors.ErrFooNotFound) || errors.Is(err, apperrors.ErrFooForbidden) {
 			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
 			return
 		}
