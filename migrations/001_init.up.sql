@@ -39,3 +39,6 @@ create table if not exists bookings (
     conference_link text null,
     created_at timestamptz not null
 );
+CREATE UNIQUE INDEX idx_unique_active_booking ON bookings (slot_id) WHERE status = 'active';
+CREATE INDEX idx_slots_room_date ON slots(room_id, start_at);
+CREATE INDEX idx_bookings_user_id ON bookings(user_id);

@@ -1,4 +1,4 @@
-.PHONY: unit-test lint start
+.PHONY: unit-test lint start stop migrate-up migrate-down logs status
 
 unit-test:
 	go test -v ./internal/service... -coverprofile=unit-test/coverage.out -coverpkg=./internal/...
