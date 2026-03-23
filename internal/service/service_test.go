@@ -516,71 +516,33 @@ func TestListRooms(t *testing.T) {
 	}
 }
 
-func TestEnsureSystemUsers(t *testing.T) {
+func TestDummyLogin(t *testing.T) {
 	cases := []struct {
-		name         string
-		ensureErr    error
-		secondErr    error
-		wantErr      error
 		expectCalled bool
+		name         string
+		role         model.Role
+		wantID       uuid.UUID
+		wantErr      error
 	}{
-		{name: "success", ensureErr: nil, secondErr: nil, wantErr: nil, expectCalled: true},
-		{name: "admin ensure fail", ensureErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict, expectCalled: true},
-		{name: "user ensure fail", ensureErr: nil, secondErr: apperrors.ErrFooConflict, wantErr: apperrors.ErrFooConflict, expectCalled: true},
+		{name: "admin success", role: model.RoleAdmin, wantID: fixedAdminID, wantErr: nil, expectCalled: true},
+		{name: "user success", role: model.RoleUser, wantID: fixedUserID, wantErr: nil, expectCalled: true},
+		{name: "invalid role", role: "invalid", wantID: uuid.Nil, wantErr: apperrors.ErrFooBadRequest, expectCalled: false},
+		{name: "admin dummy fail", role: model.RoleAdmin, wantErr: apperrors.ErrFooConflict, wantID: uuid.Nil, expectCalled: true},
+		{name: "user ensure fail", role: model.RoleUser, wantID: uuid.Nil, wantErr: apperrors.ErrFooConflict, expectCalled: true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			service, repo, ctrl := setupService(t)
 			defer ctrl.Finish()
-
-			adminExpected := repo.EXPECT().EnsureUser(gomock.Any(), gomock.Any())
-			if tc.ensureErr != nil {
-				adminExpected.Return(tc.ensureErr)
-			} else {
-				adminExpected.Return(nil)
-			}
-
-			if tc.ensureErr == nil {
-				userExpected := repo.EXPECT().EnsureUser(gomock.Any(), gomock.Any())
-				if tc.secondErr != nil {
-					userExpected.Return(tc.secondErr)
+			if tc.expectCalled {
+				expected := repo.EXPECT().EnsureUser(gomock.Any(), gomock.Any())
+				if tc.wantErr != nil {
+					expected.Return(tc.wantErr)
 				} else {
-					userExpected.Return(nil)
+					expected.Return(nil)
 				}
 			}
-
-			err := service.EnsureSystemUsers(context.Background())
-			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("expected %v got %v", tc.wantErr, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
-	}
-}
-
-func TestDummyLogin(t *testing.T) {
-	cases := []struct {
-		name    string
-		role    model.Role
-		wantID  uuid.UUID
-		wantErr error
-	}{
-		{name: "admin", role: model.RoleAdmin, wantID: fixedAdminID, wantErr: nil},
-		{name: "user", role: model.RoleUser, wantID: fixedUserID, wantErr: nil},
-		{name: "invalid", role: "invalid", wantID: uuid.Nil, wantErr: apperrors.ErrFooBadRequest},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			service, _, ctrl := setupService(t)
-			defer ctrl.Finish()
-
 			id, role, err := service.DummyLogin(context.Background(), tc.role)
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {

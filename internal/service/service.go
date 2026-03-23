@@ -48,38 +48,33 @@ func New(repo Repository, log *logrus.Entry) *Service {
 	return &Service{repo: repo, log: log}
 }
 
-func (s *Service) EnsureSystemUsers(ctx context.Context) error {
-	now := time.Now().UTC()
-	if err := s.repo.EnsureUser(ctx, model.User{
-		ID:           fixedAdminID,
-		Email:        "admin@dummy.local",
-		PasswordHash: "dummy",
-		Role:         model.RoleAdmin,
-		CreatedAt:    now,
-	}); err != nil {
-		s.log.WithField("error", err.Error()).Error("failed to ensure admin user")
-		return err
-	}
-	if err := s.repo.EnsureUser(ctx, model.User{
-		ID:           fixedUserID,
-		Email:        "user@dummy.local",
-		PasswordHash: "dummy",
-		Role:         model.RoleUser,
-		CreatedAt:    now,
-	}); err != nil {
-		s.log.WithField("error", err.Error()).Error("failed to ensure user user")
-		return err
-	}
-	s.log.Info("system users ensured")
-	return nil
-}
-
 func (s *Service) DummyLogin(ctx context.Context, role model.Role) (uuid.UUID, model.Role, error) {
+	now := time.Now().UTC()
 	var id uuid.UUID
 	switch role {
 	case model.RoleAdmin:
+		if err := s.repo.EnsureUser(ctx, model.User{
+			ID:           fixedAdminID,
+			Email:        "admin@dummy.local",
+			PasswordHash: "dummy",
+			Role:         model.RoleAdmin,
+			CreatedAt:    now,
+		}); err != nil {
+			s.log.WithField("error", err.Error()).Error("failed to ensure admin user")
+			return uuid.Nil, "", err
+		}
 		id = fixedAdminID
 	case model.RoleUser:
+		if err := s.repo.EnsureUser(ctx, model.User{
+			ID:           fixedUserID,
+			Email:        "user@dummy.local",
+			PasswordHash: "dummy",
+			Role:         model.RoleUser,
+			CreatedAt:    now,
+		}); err != nil {
+			s.log.WithField("error", err.Error()).Error("failed to ensure user user")
+			return uuid.Nil, "", err
+		}
 		id = fixedUserID
 	default:
 		s.log.WithField("role", role).Warn("invalid role for dummy login")
