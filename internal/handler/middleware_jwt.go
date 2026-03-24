@@ -33,14 +33,14 @@ func JWTMiddleware(secret []byte, log *logrus.Entry) MiddlewareFunc {
 			authz := r.Header.Get("Authorization")
 			if !strings.HasPrefix(authz, "Bearer ") {
 				log.WithField("path", path).Warn("missing bearer token")
-				writeError(w, http.StatusUnauthorized, INVALIDREQUEST, "invalid request")
+				writeError(w, http.StatusUnauthorized, UNAUTHORIZED, "unathorized")
 				return
 			}
 			raw := strings.TrimPrefix(authz, "Bearer ")
 			userID, role, err := auth.ParseToken(secret, raw)
 			if err != nil {
 				log.WithField("path", path).Warn("invalid jwt")
-				writeError(w, http.StatusUnauthorized, INVALIDREQUEST, "invalid request")
+				writeError(w, http.StatusUnauthorized, UNAUTHORIZED, "unathorized")
 				return
 			}
 			ctx := context.WithValue(r.Context(), principalKey, principal{UserID: userID, Role: role})

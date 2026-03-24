@@ -48,7 +48,7 @@ func (h *APIHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/docs/api.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml")
-		w.Write(openapiSpec)
+		w.Write(openapiSpec) //nolint:errcheck
 	})
 	mux.Handle("/swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/docs/api.yaml"),
@@ -131,8 +131,12 @@ func (h *APIHandler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, role, err := h.service.Login(r.Context(), string(req.Email), req.Password)
 	if err != nil {
-		if errors.Is(err, apperrors.ErrFooNotFound) || errors.Is(err, apperrors.ErrFooForbidden) {
-			writeError(w, http.StatusBadRequest, INVALIDREQUEST, "invalid request")
+		if errors.Is(err, apperrors.ErrFooNotFound) {
+			writeError(w, http.StatusBadRequest, NOTFOUND, "not found")
+			return
+		}
+		if errors.Is(err, apperrors.ErrFooForbidden) {
+			writeError(w, http.StatusBadRequest, FORBIDDEN, "forbidden")
 			return
 		}
 		writeInternal(w, err)
@@ -175,7 +179,7 @@ func (h *APIHandler) PostRoomsCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if p.Role != model.RoleAdmin {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("create room: insufficient permissions")
-		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
+		writeError(w, http.StatusForbidden, FORBIDDEN, "forbidden")
 		return
 	}
 	defer r.Body.Close() //nolint:errcheck
@@ -203,7 +207,7 @@ func (h *APIHandler) PostRoomsRoomIdScheduleCreate(w http.ResponseWriter, r *htt
 	}
 	if p.Role != model.RoleAdmin {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("create schedule: insufficient permissions")
-		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
+		writeError(w, http.StatusForbidden, FORBIDDEN, "forbidden")
 		return
 	}
 	defer r.Body.Close() //nolint:errcheck
@@ -217,7 +221,7 @@ func (h *APIHandler) PostRoomsRoomIdScheduleCreate(w http.ResponseWriter, r *htt
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrFooNotFound):
-			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
+			writeError(w, http.StatusNotFound, ROOMNOTFOUND, "room not found")
 		case errors.Is(err, apperrors.ErrFooConflict):
 			writeError(w, http.StatusConflict, SCHEDULEEXISTS, "schedule for this room already exists and cannot be changed")
 		case errors.Is(err, apperrors.ErrFooBadRequest):
@@ -241,7 +245,7 @@ func (h *APIHandler) GetRoomsRoomIdSlotsList(w http.ResponseWriter, r *http.Requ
 	slots, err := h.service.ListAvailableSlots(r.Context(), uuid.UUID(roomId), time.Time(params.Date.Time))
 	if err != nil {
 		if errors.Is(err, apperrors.ErrFooNotFound) {
-			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
+			writeError(w, http.StatusNotFound, ROOMNOTFOUND, "room not found")
 			return
 		}
 		writeInternal(w, err)
@@ -264,7 +268,7 @@ func (h *APIHandler) PostBookingsCreate(w http.ResponseWriter, r *http.Request) 
 	}
 	if p.Role != model.RoleUser {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("create booking: insufficient permissions")
-		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
+		writeError(w, http.StatusForbidden, FORBIDDEN, "forbidden")
 		return
 	}
 	defer r.Body.Close() //nolint:errcheck
@@ -279,7 +283,7 @@ func (h *APIHandler) PostBookingsCreate(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrFooNotFound):
-			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
+			writeError(w, http.StatusNotFound, SLOTNOTFOUND, "slot not found")
 		case errors.Is(err, apperrors.ErrFooConflict):
 			writeError(w, http.StatusConflict, SLOTALREADYBOOKED, "slot is already booked")
 		case errors.Is(err, apperrors.ErrFooBadRequest):
@@ -302,7 +306,7 @@ func (h *APIHandler) GetBookingsList(w http.ResponseWriter, r *http.Request, par
 	}
 	if p.Role != model.RoleAdmin {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("list bookings: insufficient permissions")
-		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
+		writeError(w, http.StatusForbidden, FORBIDDEN, "forbidden")
 		return
 	}
 	page, pageSize := 1, 20
@@ -339,7 +343,7 @@ func (h *APIHandler) GetBookingsMy(w http.ResponseWriter, r *http.Request) {
 	}
 	if p.Role != model.RoleUser {
 		h.log.WithFields(logrus.Fields{"user_id": p.UserID, "role": p.Role}).Warn("list my bookings: insufficient permissions")
-		writeError(w, http.StatusForbidden, INVALIDREQUEST, "invalid request")
+		writeError(w, http.StatusForbidden, FORBIDDEN, "forbidden")
 		return
 	}
 	bookings, err := h.service.ListMyBookings(r.Context(), p.UserID)
@@ -371,7 +375,7 @@ func (h *APIHandler) PostBookingsBookingIdCancel(w http.ResponseWriter, r *http.
 	if err != nil {
 		switch {
 		case errors.Is(err, apperrors.ErrFooNotFound):
-			writeError(w, http.StatusNotFound, INVALIDREQUEST, "invalid request")
+			writeError(w, http.StatusNotFound, BOOKINGNOTFOUND, "booking not found")
 		case errors.Is(err, apperrors.ErrFooForbidden):
 			writeError(w, http.StatusForbidden, FORBIDDEN, "cannot cancel another user's booking")
 		default:
