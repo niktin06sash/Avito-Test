@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	"test-backend/api"
 	"test-backend/internal/apperrors"
 	"test-backend/internal/auth"
 	"test-backend/internal/model"
@@ -41,14 +41,11 @@ func New(svc Service, jwtSecret string, log *logrus.Entry) *APIHandler {
 	return &APIHandler{service: svc, secret: jwtSecret, log: log}
 }
 
-//go:embed api.yaml
-var openapiSpec []byte
-
 func (h *APIHandler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/docs/api.yaml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-yaml")
-		w.Write(openapiSpec) //nolint:errcheck
+		w.Write(api.OpenapiSpec) //nolint:errcheck
 	})
 	mux.Handle("/swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/docs/api.yaml"),
